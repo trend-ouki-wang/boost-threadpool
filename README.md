@@ -5,4 +5,5 @@ You can refer raw source code by link:http://threadpool.sourceforge.net/index.ht
 By project requirement, fix some bugs in library.
 
 1.compile error for newer boost version.
+
 2.fix memory leak due to pool core and worker thread. 
