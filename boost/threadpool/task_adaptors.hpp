@@ -135,10 +135,14 @@ namespace boost { namespace threadpool
         if(m_break_s > 0 || m_break_ns > 0)
         { // Sleep some time before first execution
           xtime xt;
-          xtime_get(&xt, TIME_UTC);
+#if BOOST_VERSION >= 105000
+          xtime_get(&xt, TIME_UTC_);
+#else
+		  xtime_get(&xt, TIME_UTC);
+#endif
           xt.nsec += m_break_ns;
           xt.sec += m_break_s;
-          thread::sleep(xt); 
+          thread::sleep(xt);
         }
 
         while(m_function())
@@ -146,10 +150,14 @@ namespace boost { namespace threadpool
           if(m_break_s > 0 || m_break_ns > 0)
           {
             xtime xt;
-            xtime_get(&xt, TIME_UTC);
+#if BOOST_VERSION >= 105000
+			xtime_get(&xt, TIME_UTC_);
+#else
+			xtime_get(&xt, TIME_UTC);
+#endif
             xt.nsec += m_break_ns;
             xt.sec += m_break_s;
-            thread::sleep(xt); 
+            thread::sleep(xt);
           }
           else
           {
