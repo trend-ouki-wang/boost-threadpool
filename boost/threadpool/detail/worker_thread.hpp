@@ -1,8 +1,8 @@
 /*! \file
 * \brief Thread pool worker.
 *
-* The worker thread instance is attached to a pool 
-* and executes tasks of this pool. 
+* The worker thread instance is attached to a pool
+* and executes tasks of this pool.
 *
 * Copyright (c) 2005-2007 Philipp Henkel
 *
@@ -27,33 +27,33 @@
 #include <boost/bind.hpp>
 
 
-namespace boost { namespace threadpool { namespace detail 
+namespace boost { namespace threadpool { namespace detail
 {
 
-  /*! \brief Thread pool worker. 
+  /*! \brief Thread pool worker.
   *
-  * A worker_thread represents a thread of execution. The worker is attached to a 
-  * thread pool and processes tasks of that pool. The lifetime of the worker and its 
+  * A worker_thread represents a thread of execution. The worker is attached to a
+  * thread pool and processes tasks of that pool. The lifetime of the worker and its
   * internal boost::thread is managed automatically.
   *
   * This class is a helper class and cannot be constructed or accessed directly.
-  * 
+  *
   * \see pool_core
-  */ 
+  */
   template <typename Pool>
   class worker_thread
-  : public enable_shared_from_this< worker_thread<Pool> > 
+  : public enable_shared_from_this< worker_thread<Pool> >
   , private noncopyable
   {
   public:
     typedef Pool pool_type;         	   //!< Indicates the pool's type.
 
   private:
-    shared_ptr<pool_type>      m_pool;     //!< Pointer to the pool which created the worker.
-    shared_ptr<boost::thread>  m_thread;   //!< Pointer to the thread which executes the run loop.
+    weak_ptr<pool_type>      m_pool;     //!< Pointer to the pool which created the worker.
+    weak_ptr<boost::thread>  m_thread;   //!< Pointer to the thread which executes the run loop.
 
-    
-    /*! Constructs a new worker. 
+
+    /*! Constructs a new worker.
     * \param pool Pointer to it's parent pool.
     * \see function create_and_attach
     */
@@ -63,12 +63,16 @@ namespace boost { namespace threadpool { namespace detail
       assert(pool);
     }
 
-	
+
 	/*! Notifies that an exception occurred in the run loop.
 	*/
 	void died_unexpectedly()
 	{
-		m_pool->worker_died_unexpectedly(this->shared_from_this());
+		if (!m_pool.expired())
+		{
+			shared_ptr<pool_type> spPool = m_pool.lock();
+			spPool->worker_died_unexpectedly(this->shared_from_this());
+		}
 	}
 
 
@@ -76,13 +80,20 @@ namespace boost { namespace threadpool { namespace detail
 	  /*! Executes pool's tasks sequentially.
 	  */
 	  void run()
-	  { 
+	  {
 		  scope_guard notify_exception(bind(&worker_thread::died_unexpectedly, this));
 
-		  while(m_pool->execute_task()) {}
+		  if (!m_pool.expired())
+		  {
+			  shared_ptr<pool_type> spPool = m_pool.lock();
 
-		  notify_exception.disable();
-		  m_pool->worker_destructed(this->shared_from_this());
+			  while(spPool->execute_task())
+			  {
+
+			  }
+			  notify_exception.disable();
+			  spPool->worker_destructed(this->shared_from_this());
+		  }
 	  }
 
 
@@ -90,7 +101,11 @@ namespace boost { namespace threadpool { namespace detail
 	  */
 	  void join()
 	  {
-		  m_thread->join();
+		  if (!m_thread.expired())
+		  {
+			  shared_ptr<boost::thread>  spThread = m_thread.lock();
+			  spThread->join();
+		  }
 	  }
 
 
@@ -102,7 +117,9 @@ namespace boost { namespace threadpool { namespace detail
 		  shared_ptr<worker_thread> worker(new worker_thread(pool));
 		  if(worker)
 		  {
-			  worker->m_thread.reset(new boost::thread(bind(&worker_thread::run, worker)));
+			  shared_ptr<boost::thread> spThread(new boost::thread(bind(&worker_thread::run, worker)));
+
+			  worker->m_thread = spThread;
 		  }
 	  }
 
